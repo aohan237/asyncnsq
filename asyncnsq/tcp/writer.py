@@ -61,7 +61,9 @@ class Writer:
         self._queue = queue or asyncio.Queue(loop=self._loop)
         self._status = consts.INIT
         self._on_rdy_changed_cb = None
-        self._loop.create_task(self.auto_reconnect())
+        self._is_working = True
+        self._auto_reconnect_task_closed = False
+        self._auto_reconnect_task = self._loop.create_task(self.auto_reconnect())
 
     async def connect(self):
         logger.debug("writer init connect")
@@ -102,22 +104,34 @@ class Writer:
     async def auto_reconnect(self):
         logger.debug("writer autoreconnect")
         timeout_generator = retry_iterator(init_delay=0.1, max_delay=10.0)
-        while True:
-            logger.debug("autoreconnect check loop")
-            if not (self._status == consts.CONNECTED):
-                logger.debug(
-                    f"writer close({self._status})detected,reconnect")
-                conn_id = self.id if self._conn else 'init'
-                logger.info('reconnect writer{}'.format(conn_id))
-                try:
-                    await self.reconnect()
-                except ConnectionError:
-                    logger.error("Can not connect to: {}:{} ".format(
-                        self._host, self._port))
-                else:
-                    self._status = consts.CONNECTED
-            t = next(timeout_generator)
-            await asyncio.sleep(t, loop=self._loop)
+        try:
+            while self._is_working:
+                logger.debug("writer autoreconnect check loop")
+                if not (self._status == consts.CONNECTED or self._status == consts.INIT):
+                    logger.debug(
+                        f"writer close({self._status})detected,reconnect")
+                    conn_id = self.id if self._conn else 'init'
+                    logger.info('reconnect writer{}'.format(conn_id))
+                    try:
+                        await self.reconnect()
+                    except ConnectionError:
+                        logger.error("Can not connect to: {}:{} ".format(
+                            self._host, self._port))
+                    else:
+                        self._status = consts.CONNECTED
+                t = next(timeout_generator)
+                await asyncio.sleep(t, loop=self._loop)
+        except asyncio.CancelledError:
+            logger.info("{} auto_reconnect cancelled".format(self))
+        finally:
+            self._auto_reconnect_task_closed = True
+            try:
+                if self._conn and not self._conn.closed:
+                    self._conn.close()
+            except Exception as tmp:
+                logger.info(
+                    'conn close failed,maybe its closed already or init')
+                logger.exception(tmp)
 
     async def execute(self, command, *args, data=None):
         if self._conn.closed:
@@ -182,9 +196,39 @@ class Writer:
     def id(self):
         return self._conn.endpoint
 
-    def close(self):
+    async def cancel(self, timeout = 10):
+        time_in = time.time()
+        self._is_working = False
         self._conn.close()
+        while not self._conn.closed:
+            await asyncio.sleep(0.1, loop=self._loop)
+            now = time.time()
+            if timeout > 0 and now - time_in > timeout:
+                logger.warning("close failed: timeout")
+        logger.info("closing _auto_reconnect_task")
         self._status = consts.CLOSED
+        self._auto_reconnect_task.cancel()
+        while not self._auto_reconnect_task_closed:
+            await asyncio.sleep(0.1, loop=self._loop)
+            now = time.time()
+            if timeout > 0 and now - time_in > timeout:
+                logger.warning("cancel failed: timeout")
+        logger.info("_auto_reconnect_task_closed = {}".format(self._auto_reconnect_task_closed))
+
+    def close(self, timeout = 10):
+        time_in = time.time()
+        close_task = self._loop.create_task(self.cancel(timeout))
+        while True:
+            if close_task.cancelled():
+                logger.info("writer closer cancelled..")
+                return
+            if close_task.done():
+                logger.info("writer closer finished..")
+                return
+            now = time.time()
+            if timeout > 0 and now - time_in > timeout:
+                logger.warning("writer closer timeout")
+                return
 
     def __repr__(self):
         return '<Writer{}>'.format(self._conn.__repr__())

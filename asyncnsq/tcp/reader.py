@@ -6,7 +6,7 @@ from asyncnsq.http import NsqLookupd
 from asyncnsq.tcp.reader_rdy import RdyControl
 from functools import partial
 from .connection import create_connection
-from .consts import SUB
+from .consts import SUB,RDY,CLS
 
 logger = logging.getLogger(__package__)
 
@@ -68,6 +68,7 @@ class Reader:
 
         self._rdy_control = None
         self._max_in_flight = max_in_flight
+        self._num_readers = 0
 
         self._is_subscribe = False
         self._redistribute_timeout = 5  # sec
@@ -147,6 +148,14 @@ class Reader:
 
     async def sub(self, conn, topic, channel):
         await conn.execute(SUB, topic, channel)
+    
+    async def set_max_in_flight(self, max_in_flight):
+        for conn in self._connections.values():
+            conn.execute(RDY, max_in_flight)
+
+    async def send_cls(self):
+        for conn in self._connections.values():
+            conn.execute(CLS)
 
     def wait_messages(self):
         if not self._is_subscribe:
@@ -159,10 +168,21 @@ class Reader:
     async def messages(self):
         if not self._is_subscribe:
             raise ValueError('You must subscribe to the topic first')
+        
+        try:
+            logger.debug("num readers ++ ")
+            self._num_readers += 1
+            while self._is_subscribe:
+                result = await self._queue.get()
+                if result is not None:
+                    yield result
+                else:
+                    logger.debug("got NONE, skip")
+            logger.debug("leaving message receiving")
+        finally:
+            logger.debug("num readers -- ")
+            self._num_readers -= 1
 
-        while self._is_subscribe:
-            result = await self._queue.get()
-            yield result
 
     async def _redistribute(self):
         while self._is_subscribe:
@@ -173,8 +193,62 @@ class Reader:
     async def _lookupd(self):
         host, port = random.choice(self._lookupd_http_addresses)
         await self._poll_lookupd(host, port)
+    
+    async def unsubscribe(self):
+        if not self._is_subscribe:
+            raise ValueError('You must subscribe to the topic first')
+        logger.debug("unsubscribe starting... in {}".format(__package__))
+        # mark as disabled
+        await self.set_max_in_flight(0)
+        # clear is_subscribed flag
+        self._is_subscribe = False
+        # send None to clear readers
+        while self._num_readers > 0:
+            for i in range(self._num_readers):
+                self._queue.put_nowait(None)
+            await asyncio.sleep(0.05)
+        # no subscribers now
+
+        # clear & req rest of the messages
+        # mostly it is empty
+        try:
+            # consume all unfinished elems
+            while not self._queue.empty():
+                try:
+                    result = self._queue.get_nowait()
+                    if result is not None:
+                        logger.debug("req: {}".format(result))
+                        await result.req(0)
+                except Exception as e:
+                    logger.warning("req message failed {}".format(e))
+        except Exception as e:
+            logger.warning("requeue all messages failed {}".format(e))
 
 
-    def close(self):
-        for conn in self._connections:
-            conn.close()
+    async def cancel(self, timeout = 10):
+        self._is_subscribe = False
+        try:
+            # await self.send_cls()
+            # clear rdy_controls
+            if self._rdy_control is not None:
+                self._rdy_control.stop_working()
+            # close all connections
+            for conn in self._connections.values():
+                conn.close()
+        except Exception as e:
+            logger.error("close failed: {}".format(e))
+
+    def close(self, timeout = 10):
+        time_in = time.time()
+        close_task = self._loop.create_task(self.cancel(timeout))
+        while True:
+            if close_task.cancelled():
+                logger.info("reader closer cancelled..")
+                return
+            if close_task.done():
+                logger.info("reader closer finished..")
+                return
+            now = time.time()
+            if timeout > 0 and now - time_in > timeout:
+                logger.warning("writer closer timeout")
+                return

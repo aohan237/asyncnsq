@@ -4,6 +4,7 @@ import random
 from .consts import RDY
 REDISTRIBUTE = 0
 CHANGE_CONN_RDY = 1
+NOOP = 2
 
 
 class RdyControl:
@@ -45,6 +46,8 @@ class RdyControl:
                 await self._redistribute_rdy_state()
             elif cmd == CHANGE_CONN_RDY:
                 await self._update_rdy(*args)
+            elif cmd == NOOP:
+                continue
             else:
                 RuntimeError("Should never be here")
 
@@ -53,6 +56,11 @@ class RdyControl:
 
     def remove_all(self):
         self._connections = {}
+    
+    def stop_working(self):
+        self._is_working = False
+        self._cmd_queue.put_nowait((NOOP, ()))
+        self.remove_all()
 
     async def _redistribute_rdy_state(self):
         # We redistribute RDY counts in a few cases:
