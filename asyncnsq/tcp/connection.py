@@ -196,7 +196,7 @@ class TcpConnection:
     async def _read_data(self):
         """Response reader task."""
         is_canceled = False
-        logger.info("{} starting _read_data".format(self))
+        # logger.debug("{} starting _read_data".format(self))
         while not self._reader.at_eof():
             try:
                 data = await self._reader.read(52)

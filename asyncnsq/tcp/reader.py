@@ -197,7 +197,7 @@ class Reader:
     async def unsubscribe(self):
         if not self._is_subscribe:
             raise ValueError('You must subscribe to the topic first')
-        logger.debug("unsubscribe starting... in {}".format(__package__))
+        # logger.debug("unsubscribing {}".format(self))
         # mark as disabled
         await self.set_max_in_flight(0)
         # clear is_subscribed flag
