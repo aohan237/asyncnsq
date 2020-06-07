@@ -227,7 +227,8 @@ class Reader:
 
 
     async def cancel(self, timeout = 10):
-        self._is_subscribe = False
+        if self._is_subscribe:
+            await self.unsubscribe()
         try:
             # await self.send_cls()
             # clear rdy_controls
