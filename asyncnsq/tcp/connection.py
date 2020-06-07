@@ -115,8 +115,7 @@ class TcpConnection:
 
     def close(self):
         """Close connection."""
-        if not self.closed:
-            self._do_close()
+        self._do_close()
 
     async def identify(self, **config):
         # TODO: add config validator

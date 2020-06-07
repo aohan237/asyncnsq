@@ -218,6 +218,7 @@ class Writer:
     def close(self, timeout = 10):
         time_in = time.time()
         close_task = self._loop.create_task(self.cancel(timeout))
+        timeout_generator = retry_iterator(init_delay=0.01, max_delay=1.0)
         while True:
             if close_task.cancelled():
                 logger.info("writer closer cancelled..")
@@ -229,6 +230,8 @@ class Writer:
             if timeout > 0 and now - time_in > timeout:
                 logger.warning("writer closer timeout")
                 return
+            t = next(timeout_generator)
+            time.sleep(t)
 
     def __repr__(self):
         return '<Writer{}>'.format(self._conn.__repr__())

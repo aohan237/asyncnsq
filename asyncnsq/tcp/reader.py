@@ -5,6 +5,7 @@ import time
 from asyncnsq.http import NsqLookupd
 from asyncnsq.tcp.reader_rdy import RdyControl
 from functools import partial
+from ..utils import retry_iterator
 from .connection import create_connection
 from .consts import SUB,RDY,CLS
 
@@ -93,7 +94,7 @@ class Reader:
                     loop=self._loop)
                 await self.prepare_conn(conn)
                 self._connections[conn.id] = conn
-            self._rdy_control.add_connections(self._connections) #do we need to close conn in rdy_control?
+            self._rdy_control.add_connections(self._connections)
         # init distribute for conns, init update rdy state for conn
         self._rdy_control.redistribute()
 
@@ -241,6 +242,7 @@ class Reader:
     def close(self, timeout = 10):
         time_in = time.time()
         close_task = self._loop.create_task(self.cancel(timeout))
+        timeout_generator = retry_iterator(init_delay=0.01, max_delay=1.0)
         while True:
             if close_task.cancelled():
                 logger.info("reader closer cancelled..")
@@ -252,3 +254,5 @@ class Reader:
             if timeout > 0 and now - time_in > timeout:
                 logger.warning("writer closer timeout")
                 return
+            t = next(timeout_generator)
+            time.sleep(t)
