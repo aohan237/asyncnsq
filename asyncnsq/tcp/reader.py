@@ -5,7 +5,7 @@ import time
 from asyncnsq.http import NsqLookupd
 from asyncnsq.tcp.reader_rdy import RdyControl
 from functools import partial
-from ..utils import retry_iterator
+# from ..utils import retry_iterator
 from .connection import create_connection
 from .consts import SUB,RDY,CLS
 
@@ -226,7 +226,7 @@ class Reader:
             logger.warning("requeue all messages failed {}".format(e))
 
 
-    async def cancel(self, timeout = 10):
+    async def close(self):
         if self._is_subscribe:
             await self.unsubscribe()
         try:
@@ -240,20 +240,21 @@ class Reader:
         except Exception as e:
             logger.error("close failed: {}".format(e))
 
-    def close(self, timeout = 10):
-        time_in = time.time()
-        close_task = self._loop.create_task(self.cancel(timeout))
-        timeout_generator = retry_iterator(init_delay=0.01, max_delay=1.0)
-        while True:
-            if close_task.cancelled():
-                logger.info("reader closer cancelled..")
-                return
-            if close_task.done():
-                logger.info("reader closer finished..")
-                return
-            now = time.time()
-            if timeout > 0 and now - time_in > timeout:
-                logger.warning("writer closer timeout")
-                return
-            t = next(timeout_generator)
-            time.sleep(t)
+    # it will cause complex issue
+    # def close(self, timeout = 10):
+    #     time_in = time.time()
+    #     close_task = self._loop.create_task(self.cancel(timeout))
+    #     timeout_generator = retry_iterator(init_delay=0.01, max_delay=1.0)
+    #     while True:
+    #         if close_task.cancelled():
+    #             logger.info("reader closer cancelled..")
+    #             return
+    #         if close_task.done():
+    #             logger.info("reader closer finished..")
+    #             return
+    #         now = time.time()
+    #         if timeout > 0 and now - time_in > timeout:
+    #             logger.warning("writer closer timeout")
+    #             return
+    #         t = next(timeout_generator)
+    #         time.sleep(t)

@@ -55,6 +55,7 @@ class TcpConnection:
         self._is_upgrading = False
         self._on_message = on_message
         self._on_close = None
+        self._on_close_flag = asyncio.Event(loop=self._loop)
 
         # number of received but not acked or req messages
         self._in_flight = 0
@@ -108,6 +109,9 @@ class TcpConnection:
             self._closing = closed = True
             self._loop.call_soon(self._do_close, None)
         return closed
+    
+    async def wait_for_closed(self, timeout=10):
+        await asyncio.wait_for(self._on_close_flag.wait(), timeout, loop=self._loop)
 
     @property
     def queue(self):
@@ -150,6 +154,7 @@ class TcpConnection:
         self._closing = False
         self._writer.transport.close()
         self._reader_task.cancel()
+        self._on_close_flag.set()
 
     def _send_magic(self):
         self._writer.write(consts.MAGIC_V2)
