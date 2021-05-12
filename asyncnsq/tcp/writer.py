@@ -35,7 +35,7 @@ async def create_writer(
         deflate_level=deflate_level, log_level=log_level,
         sample_rate=sample_rate, consumer=consumer, loop=loop, **kwargs)
     await writer.connect()
-    loop.create_task(writer.auto_reconnect())
+    writer.start_reconnect_task()
     return writer
 
 
@@ -65,6 +65,7 @@ class Writer:
         self._status = consts.INIT
         self._on_rdy_changed_cb = None
         self._auth_secret = auth_secret.decode('utf-8') if isinstance(auth_secret, bytes) else auth_secret
+        self._reconnect_task = None
 
     async def connect(self):
         logger.debug("writer init connect")
@@ -76,10 +77,14 @@ class Writer:
         resp = json.loads(_convert_to_str(resp))
         if resp.get('auth_required') is True:
             if not self._auth_secret:
+                self.close()
                 raise WriterError("Auth secret is required for NSQ connection")
             resp = await self._conn.auth(self._auth_secret)
 
         self._status = consts.CONNECTED
+
+    def start_reconnect_task(self):
+        self._reconnect_task = self._loop.create_task(self.auto_reconnect())
 
     def _on_message(self, msg):
         # should not be coroutine
@@ -192,6 +197,8 @@ class Writer:
         return self._conn.endpoint
 
     def close(self):
+        if self._reconnect_task:
+            self._reconnect_task.cancel()
         self._conn.close()
         self._status = consts.CLOSED
 

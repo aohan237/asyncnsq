@@ -101,3 +101,8 @@ class RdyControl:
         # get the max rdy state for conn
         rdy_state = int(max(1, base_conn_max_in_flight - conn_in_flight))
         await conn.execute(RDY, rdy_state)
+
+    def close(self):
+        self._distributor_task.cancel()
+        for conn in self._connections.values():
+            conn.close()

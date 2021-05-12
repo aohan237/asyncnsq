@@ -18,7 +18,20 @@ async def create_auth_server(auth_secret, loop=None):
 
 def create_dev_auth_server(argv):
     auth_server = AuthServer()
+
     auth_server.add_client('test_secret', 'test_client_id', remote_ip='127.0.0.1', tls=False)
+    auth_server.add_client('test_ip', 'test_client_id', remote_ip='127.0.0.2', tls=False)
+    auth_server.add_client('test_tls', 'test_client_id', remote_ip='127.0.0.1', tls=True)
+
+    auths = [auth_server.make_auth(permissions=['subscribe'])]
+    auth_server.add_client('test_no_pub', 'test_client_id', remote_ip='127.0.0.1', tls=False, auths=auths)
+    auths = [auth_server.make_auth(permissions=['publish'])]
+    auth_server.add_client('test_no_sub', 'test_client_id', remote_ip='127.0.0.1', tls=False, auths=auths)
+    auths = [auth_server.make_auth(topic='test_topic')]
+    auth_server.add_client('test_topic', 'test_client_id', remote_ip='127.0.0.1', tls=False, auths=auths)
+    auths = [auth_server.make_auth(channels=['test_channel'])]
+    auth_server.add_client('test_channel', 'test_client_id', remote_ip='127.0.0.1', tls=False, auths=auths)
+
     return auth_server.make_app()
 
 
@@ -69,7 +82,7 @@ class AuthServer:
         if remote_ip and remote_ip != self._client_auths[secret]['remote_ip']:
             raise aiohttp.web.HTTPUnauthorized
 
-        if tls and tls != self._client_auths[secret]['tls']:
+        if tls is not None and tls != self._client_auths[secret]['tls']:
             raise aiohttp.web.HTTPUnauthorized
 
         client_auth = self._client_auths[secret]['auth']

@@ -248,7 +248,7 @@ class TcpConnection:
                 waiter, cb = self._cmd_waiters.popleft()
                 error = make_error(*resp)
                 if not waiter.cancelled():
-                    waiter.set_result(resp)
+                    waiter.set_exception(error)
                     cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_MESSAGE:
 

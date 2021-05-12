@@ -69,9 +69,6 @@ class Reader:
 
         self._idle_timeout = 10
 
-        self._rdy_control = None
-        self._max_in_flight = max_in_flight
-
         self._is_subscribe = False
         self._redistribute_timeout = 5  # sec
         self._lookupd_poll_time = 30  # sec
@@ -106,6 +103,8 @@ class Reader:
         resp = json.loads(_convert_to_str(resp))
         if resp.get('auth_required') is True:
             if not self._auth_secret:
+                conn.close()
+                self.close()
                 raise ReaderError("Auth secret is required for NSQ connection")
             resp = await conn.auth(self._auth_secret)
 
@@ -182,3 +181,8 @@ class Reader:
     async def _lookupd(self):
         host, port = random.choice(self._lookupd_http_addresses)
         await self._poll_lookupd(host, port)
+
+    def close(self):
+        self._rdy_control.close()
+        for conn in self._connections.values():
+            conn.close()
