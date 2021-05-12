@@ -12,33 +12,39 @@ class NsqLookupdTest(BaseTest):
         conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = await conn.ping()
         self.assertEqual(res, 'OK')
+        await conn.close()
 
     @run_until_complete
     async def test_info(self):
         conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = await conn.info()
         self.assertTrue('version' in res)
+        await conn.close()
 
     @run_until_complete
     async def test_lookup(self):
         conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = await conn.lookup('foo')
         self.assertIn('producers', res)
+        await conn.close()
 
     @run_until_complete
     async def test_topics(self):
         conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = await conn.topics()
         self.assertIn('topics', res)
+        await conn.close()
 
     @run_until_complete
     async def test_channels(self):
         conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = await conn.channels('foo')
         self.assertIn('channels', res)
+        await conn.close()
 
     @run_until_complete
     async def test_nodes(self):
         conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = await conn.nodes()
         self.assertIn('producers', res)
+        await conn.close()
