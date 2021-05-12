@@ -129,6 +129,7 @@ Running Tests
 
 2. install requirements (in a virtual environment)
     - `pip install aiohttp python-snappy`
+    - `pip install pytest`  dev test package if you want autotest support
 
 3. run the auth server in a separate terminal session
     - `python -m aiohttp.web -H localhost -P 8080 asyncnsq.http.auth:create_dev_auth_server`
@@ -152,6 +153,26 @@ Running Tests
     Ran 2 tests in 0.260s
 
     OK
+    ```
+
+    - `pytest` just pytest will do all the trick
+
+    ```
+    $ pytest -k test_reader_and_writer
+    ------------------------------------------------------------------------------ live log call    -------------------------------------------------------------------------------
+    DEBUG    asyncnsq.tcp:connection.py:82 execute command b'IDENTIFY\n\x00\x00\x00\x1d {"feature_negotiation": true}'
+    DEBUG    asyncnsq.tcp:connection.py:239 got nsq data: (0, b'{"max_rdy_count":2500,"version":"1.2.0",    "max_msg_timeout":900000,"msg_timeout":60000,"tls_v1":false,"deflate":false,"deflate_level":6,  "max_deflate_level":6,"snappy":false,"sample_rate":0,"auth_required":false,"output_buffer_size":16384,    "output_buffer_timeout":250}')
+    DEBUG    asyncnsq.tcp:connection.py:208 Task is canceled
+    SKIPPED (no auth    enabled)                                                                                                                                              [ 75%]
+    tests/test_reader_and_writer.py::NsqTest::test_04_reader_fail_missing_secret
+    ------------------------------------------------------------------------------ live log call    -------------------------------------------------------------------------------
+    DEBUG    asyncnsq.tcp:connection.py:82 execute command b'IDENTIFY\n\x00\x00\x00\x1d {"feature_negotiation": true}'
+    DEBUG    asyncnsq.tcp:connection.py:239 got nsq data: (0, b'{"max_rdy_count":2500,"version":"1.2.0",    "max_msg_timeout":900000,"msg_timeout":60000,"tls_v1":false,"deflate":false,"deflate_level":6,  "max_deflate_level":6,"snappy":false,"sample_rate":0,"auth_required":false,"output_buffer_size":16384,    "output_buffer_timeout":250}')
+    DEBUG    asyncnsq.tcp:connection.py:208 Task is canceled
+    SKIPPED (no auth    enabled)                                                                                                                                              [100%]
+
+    =============================================================== 2 passed, 2 skipped, 39 deselected in 0.    65s ================================================================
+
     ```
 
 
