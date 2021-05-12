@@ -5,7 +5,10 @@
 import abc
 import struct
 import zlib
-import snappy
+try:
+    import snappy
+except Exception as tmp:
+    print("snappy is not installed, install it if you need snappy compress")
 import logging
 
 from . import consts

@@ -25,6 +25,8 @@ class NsqConnectionTest(BaseTest):
 
     def tearDown(self):
         super().tearDown()
+        self.loop.run_until_complete(
+            self.http_writer.close())
 
     @run_until_complete
     async def test_basic_instance(self):
@@ -78,21 +80,6 @@ class NsqConnectionTest(BaseTest):
         if res.get('auth_required') is True:
             with self.assertRaises(NSQAuthFailed):
                 await conn.auth('test_tls')
-            conn.close()
-        else:
-            conn.close()
-            self.skipTest("no auth enabled")
-
-    @run_until_complete
-    async def test_auth_fail_bad_secret(self):
-        host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
-        res = await conn.identify(feature_negotiation=True)
-        res = json.loads(_convert_to_str(res))
-        if res.get('auth_required') is True:
-            with self.assertRaises(NSQAuthFailed):
-                await conn.auth('this is the wrong secret')
             conn.close()
         else:
             conn.close()
@@ -222,7 +209,6 @@ class NsqConnectionTest(BaseTest):
         await self._pub_sub_rdy_fin(conn)
         conn.close()
 
-    @asyncio.coroutine
     async def _pub_sub_rdy_fin(self, conn):
         print("start _pub_sub_rdy_fin")
         print(conn.closed)

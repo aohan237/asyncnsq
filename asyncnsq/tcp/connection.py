@@ -25,7 +25,7 @@ async def create_connection(host='localhost', port=4150,
         TcpConnection
     """
     reader, writer = await asyncio.open_connection(
-        host, port, loop=loop)
+        host, port)
     conn = TcpConnection(reader, writer, host, port, queue=queue, loop=loop)
     conn.connect()
     return conn
@@ -44,7 +44,7 @@ class TcpConnection:
         self._loop = loop or asyncio.get_event_loop()
 
         assert isinstance(queue, asyncio.Queue) or queue is None
-        self._queue = queue or asyncio.Queue(loop=self._loop)
+        self._queue = queue or asyncio.Queue()
 
         self._parser = Reader()
         # next queue is used for nsq commands
@@ -152,6 +152,7 @@ class TcpConnection:
         self._closing = False
         self._writer.transport.close()
         self._reader_task.cancel()
+        self._writer.close()
 
     def _send_magic(self):
         self._writer.write(consts.MAGIC_V2)
