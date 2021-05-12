@@ -177,8 +177,18 @@ Running Tests
 
     ```
 
-
 License
 -------
 
 The asyncnsq is offered under MIT license.
+
+Donation
+--------
+
+If you like this repo, buy me a coffee.
+
+**ETH wallet** 
+
+![Donation](./opensource_wallet.jpeg)
+
+**Or you can participate with this project.**
