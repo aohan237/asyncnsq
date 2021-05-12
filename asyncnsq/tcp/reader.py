@@ -3,6 +3,7 @@ import json
 import logging
 import random
 import time
+import signal
 from asyncnsq.http import NsqLookupd
 from asyncnsq.tcp.exceptions import ReaderError
 from asyncnsq.tcp.reader_rdy import RdyControl
@@ -78,6 +79,8 @@ class Reader:
         self._rdy_control = RdyControl(idle_timeout=self._idle_timeout,
                                        max_in_flight=self._max_in_flight,
                                        loop=self._loop)
+
+        self.clean_closed = False
 
     async def connect(self):
         logging.info('reader connecting')
@@ -161,15 +164,20 @@ class Reader:
         if not self._is_subscribe:
             raise ValueError('You must subscribe to the topic first')
 
-        while self._is_subscribe:
+        while self._is_subscribe and (not self.clean_closed):
             fut = self._loop.create_task(self._queue.get())
             yield fut
+
+        if self.clean_closed:
+            while not self._queue.empty():
+                fut = self._loop.create_task(self._queue.get())
+                yield fut
 
     async def messages(self):
         if not self._is_subscribe:
             raise ValueError('You must subscribe to the topic first')
 
-        while self._is_subscribe:
+        while self._is_subscribe and (not self.clean_closed):
             result = await self._queue.get()
             yield result
 
@@ -183,7 +191,24 @@ class Reader:
         host, port = random.choice(self._lookupd_http_addresses)
         await self._poll_lookupd(host, port)
 
-    def close(self):
+    async def requeue_msg_closed(self):
+        logger.info("requeue_msg_closed")
+        if self.clean_closed:
+            while not self._queue.empty():
+                result = await self._queue.get()
+                await result.req()
+
+    async def clean_close(self):
+        logger.info("clean_close")
         self._rdy_control.close()
+        self.clean_closed = True
+        await self.requeue_msg_closed()
+        for conn in self._connections.values():
+            conn.close()
+
+    def close(self, *args):
+        logger.info("reader closed")
+        self._rdy_control.close()
+        self.clean_closed = True
         for conn in self._connections.values():
             conn.close()

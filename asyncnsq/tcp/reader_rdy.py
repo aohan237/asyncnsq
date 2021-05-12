@@ -15,7 +15,7 @@ class RdyControl:
         self._max_in_flight = max_in_flight
         self._loop = loop or asyncio.get_event_loop()
 
-        self._cmd_queue = asyncio.Queue(loop=self._loop)
+        self._cmd_queue = asyncio.Queue()
 
         self._expected_rdy_state = {}
 
@@ -104,5 +104,3 @@ class RdyControl:
 
     def close(self):
         self._distributor_task.cancel()
-        for conn in self._connections.values():
-            conn.close()

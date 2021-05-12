@@ -143,7 +143,6 @@ class TcpConnection:
         return await self.execute(b'AUTH', data=secret)
 
     def _do_close(self, exc=None):
-        print("this is the going close info")
         if exc:
             logger.error("Connection closed with error: {}".format(exc))
         if self._closed:
@@ -152,7 +151,10 @@ class TcpConnection:
         self._closing = False
         self._writer.transport.close()
         self._reader_task.cancel()
-        self._writer.close()
+        self._send_close()
+
+    def _send_close(self):
+        self._writer.write(consts.CLS)
 
     def _send_magic(self):
         self._writer.write(consts.MAGIC_V2)
@@ -241,6 +243,8 @@ class TcpConnection:
             if resp_type == consts.FRAME_TYPE_RESPONSE and resp == hb:
                 self._pulse()
             elif resp_type == consts.FRAME_TYPE_RESPONSE:
+                if resp == consts.CLOSE_OK:
+                    logger.info('receive clean close,closed')
                 waiter, cb = self._cmd_waiters.popleft()
                 if not waiter.cancelled():
                     waiter.set_result(resp)
