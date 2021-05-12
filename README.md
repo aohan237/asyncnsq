@@ -1,7 +1,9 @@
 # asyncnsq
 [![Downloads](https://pepy.tech/badge/asyncnsq)](https://pepy.tech/project/asyncnsq)
 [![PyPI version](https://badge.fury.io/py/asyncnsq.svg)](https://badge.fury.io/py/asyncnsq)
+[![Python Verion](https://img.shields.io/pypi/pyversions/asyncnsq.svg?logo=python&logoColor=FBE072)](https://img.shields.io/pypi/pyversions/asyncnsq.svg?logo=python&logoColor=FBE072)
 [![codecov](https://codecov.io/gh/aohan237/asyncnsq/branch/master/graph/badge.svg?token=Ezbgfka7p5)](https://codecov.io/gh/aohan237/asyncnsq)
+
 ## async nsq with asyncio
 
 **if you dont like the pynsq(which use tornado) way to interact with nsq, then this library may be suitable for you**
