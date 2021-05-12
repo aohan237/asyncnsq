@@ -189,6 +189,6 @@ If you like this repo, buy me a coffee.
 
 **ETH wallet** 
 
-![Donation](./opensource_wallet.jpeg)
+<img src="./opensource_wallet.jpeg" alt="drawing" width="400"/>
 
 **Or you can participate with this project.**
