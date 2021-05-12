@@ -67,13 +67,13 @@ class NsqTest(BaseTest):
         res = json.loads(_convert_to_str(res))
         auth_required = res.get('auth_required') or False
         conn.close()
-        return res
+        return auth_required
 
     @run_until_complete
     async def test_03_writer_fail_missing_secret(self):
         if await self._is_auth_required():
             with self.assertRaises(WriterError):
-                nsq = await create_writer(
+                _ = await create_writer(
                     host=self.host,
                     port=self.port,
                     feature_negotiation=True,
@@ -86,7 +86,7 @@ class NsqTest(BaseTest):
     async def test_04_reader_fail_missing_secret(self):
         if await self._is_auth_required():
             with self.assertRaises(ReaderError):
-                nsq = await create_reader(
+                _ = await create_reader(
                     nsqd_tcp_addresses=[f"{self.host}:{self.port}"],
                     feature_negotiation=True,
                     loop=self.loop

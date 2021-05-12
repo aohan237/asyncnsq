@@ -63,7 +63,7 @@ class Reader:
 
         self._max_in_flight = max_in_flight
         self._loop = loop or asyncio.get_event_loop()
-        self._queue = asyncio.Queue(loop=self._loop)
+        self._queue = asyncio.Queue()
 
         self._connections = {}
 
@@ -73,7 +73,8 @@ class Reader:
         self._redistribute_timeout = 5  # sec
         self._lookupd_poll_time = 30  # sec
         self.topic = None
-        self._auth_secret = auth_secret.decode('utf-8') if isinstance(auth_secret, bytes) else auth_secret
+        self._auth_secret = auth_secret.decode(
+            'utf-8') if isinstance(auth_secret, bytes) else auth_secret
         self._rdy_control = RdyControl(idle_timeout=self._idle_timeout,
                                        max_in_flight=self._max_in_flight,
                                        loop=self._loop)

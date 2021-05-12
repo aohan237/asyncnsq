@@ -26,7 +26,7 @@ async def create_writer(
     """
     # TODO: add parameters type and value validation
     loop = loop or asyncio.get_event_loop()
-    queue = queue or asyncio.Queue(loop=loop)
+    queue = queue or asyncio.Queue()
     writer = Writer(
         host=host, port=port, queue=queue,
         heartbeat_interval=heartbeat_interval,
@@ -61,10 +61,11 @@ class Writer:
         self._port = port
         self._conn = None
         self._loop = loop
-        self._queue = queue or asyncio.Queue(loop=self._loop)
+        self._queue = queue or asyncio.Queue()
         self._status = consts.INIT
         self._on_rdy_changed_cb = None
-        self._auth_secret = auth_secret.decode('utf-8') if isinstance(auth_secret, bytes) else auth_secret
+        self._auth_secret = auth_secret.decode(
+            'utf-8') if isinstance(auth_secret, bytes) else auth_secret
         self._reconnect_task = None
 
     async def connect(self):
@@ -131,7 +132,7 @@ class Writer:
                 else:
                     self._status = consts.CONNECTED
             t = next(timeout_generator)
-            await asyncio.sleep(t, loop=self._loop)
+            await asyncio.sleep(t)
 
     async def execute(self, command, *args, data=None):
         if self._conn.closed:
