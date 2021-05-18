@@ -10,45 +10,16 @@
 
 you can use this library as the common way to write things
 
-## Important
-
-* #### from version 1.0.0 asyncnsq  has a break change in api
-
-* #### it is not stable yet
-
-* #### you may want to use stable " pip install asyncnsq==0.4.5"
-
-## Features
-
 --------------
 
-### Http Client
+## User Documents
+[Documents](https://aohan237.github.io/asyncnsq/)
 
-* support all the method nsq http supplied
-
-### Tcp Client
-
-#### Connection
-
-* low level connection.
-
-#### Reader
-
-* reader from both lookupd for auto finding nsqd
-
-* list of known nsqd but they can not use together.
-
-* above two can't use together
-
-#### Writer
-
-* all the common method for nsqd writer
-
-## Next Features
+## Unsupported Features
 
 ### different reader protocol support
-### more doc to write
-### more tests
+
+for now only snappy support, if you want more, just start an feature issue.
 
 
 ## Install
