@@ -170,10 +170,10 @@ reader.set_message_handler(handle, auto_fin=True, direct=True)
 Benchmark
 ---------
 
-The benchmark suite is designed for pull requests: it is deterministic enough
-for repeated local runs, fast by default, and strict enough to fail when the
-client loses messages, duplicates messages, times out, or fails graceful
-shutdown recovery.
+The benchmark suite is designed for release checks and local regression
+testing: it is deterministic enough for repeated local runs, fast by default,
+and strict enough to fail when the client loses messages, duplicates messages,
+times out, or fails graceful shutdown recovery.
 
 It benchmarks the surfaces that matter for an NSQ client under high throughput:
 
@@ -187,7 +187,7 @@ It benchmarks the surfaces that matter for an NSQ client under high throughput:
   not finished, `reader.graceful_close()` sends `RDY 0` and `REQ`, and a fresh
   reader must recover and finish all of them.
 
-One-command local PR benchmark:
+One-command local benchmark:
 
 ```bash
 uv sync
@@ -240,7 +240,7 @@ messages, 512 B payloads, concurrency 256, `max_in_flight=1024`, and
 `output_buffer_timeout=25ms`. Treat them as a same-machine reference, not a
 portable guarantee.
 
-Current asyncnsq PR benchmark:
+Current asyncnsq benchmark:
 
 | Scenario | Messages | msg/s | MiB/s | p50 ms | p95 ms | p99 ms | Errors | Notes |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
