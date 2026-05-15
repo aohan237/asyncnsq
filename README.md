@@ -1,7 +1,7 @@
 # asyncnsq
 [![Downloads](https://pepy.tech/badge/asyncnsq)](https://pepy.tech/project/asyncnsq)
 [![PyPI version](https://img.shields.io/pypi/v/asyncnsq.svg?logo=pypi&logoColor=white)](https://pypi.org/project/asyncnsq/)
-[![Python Version](https://img.shields.io/pypi/pyversions/asyncnsq.svg?logo=python&logoColor=FBE072)](https://pypi.org/project/asyncnsq/)
+[![Python Version](https://img.shields.io/pypi/pyversions/asyncnsq.svg?logo=python&logoColor=FBE072&cacheSeconds=3600)](https://pypi.org/project/asyncnsq/)
 [![codecov](https://codecov.io/gh/aohan237/asyncnsq/branch/master/graph/badge.svg)](https://codecov.io/gh/aohan237/asyncnsq)
 
 ## async nsq with asyncio
