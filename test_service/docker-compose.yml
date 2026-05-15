@@ -1,0 +1,98 @@
+services:
+  nsqlookupd:
+    image: nsqio/nsq:v1.3.0
+    container_name: asyncnsq-lookupd
+    command:
+      - /nsqlookupd
+      - --broadcast-address=nsqlookupd
+    ports:
+      - "4160:4160"
+      - "4161:4161"
+
+  nsqd1:
+    image: nsqio/nsq:v1.3.0
+    container_name: asyncnsq-nsqd1
+    depends_on:
+      - nsqlookupd
+    command:
+      - /nsqd
+      - --lookupd-tcp-address=nsqlookupd:4160
+      - --broadcast-address=127.0.0.1
+      - --broadcast-tcp-port=4150
+      - --broadcast-http-port=4151
+      - --snappy=true
+      - --deflate=true
+      - --tls-cert=/certs/sample.crt
+      - --tls-key=/certs/sample.key
+      - --data-path=/data
+    ports:
+      - "4150:4150"
+      - "4151:4151"
+    volumes:
+      - ../tests/sample.crt:/certs/sample.crt:ro
+      - ../tests/sample.key:/certs/sample.key:ro
+      - nsqd1-data:/data
+
+  nsqd2:
+    image: nsqio/nsq:v1.3.0
+    container_name: asyncnsq-nsqd2
+    depends_on:
+      - nsqlookupd
+    command:
+      - /nsqd
+      - --lookupd-tcp-address=nsqlookupd:4160
+      - --broadcast-address=127.0.0.1
+      - --broadcast-tcp-port=4250
+      - --broadcast-http-port=4251
+      - --snappy=true
+      - --deflate=true
+      - --tls-cert=/certs/sample.crt
+      - --tls-key=/certs/sample.key
+      - --data-path=/data
+    ports:
+      - "4250:4150"
+      - "4251:4151"
+    volumes:
+      - ../tests/sample.crt:/certs/sample.crt:ro
+      - ../tests/sample.key:/certs/sample.key:ro
+      - nsqd2-data:/data
+
+  nsqd3:
+    image: nsqio/nsq:v1.3.0
+    container_name: asyncnsq-nsqd3
+    depends_on:
+      - nsqlookupd
+    command:
+      - /nsqd
+      - --lookupd-tcp-address=nsqlookupd:4160
+      - --broadcast-address=127.0.0.1
+      - --broadcast-tcp-port=4350
+      - --broadcast-http-port=4351
+      - --snappy=true
+      - --deflate=true
+      - --tls-cert=/certs/sample.crt
+      - --tls-key=/certs/sample.key
+      - --data-path=/data
+    ports:
+      - "4350:4150"
+      - "4351:4151"
+    volumes:
+      - ../tests/sample.crt:/certs/sample.crt:ro
+      - ../tests/sample.key:/certs/sample.key:ro
+      - nsqd3-data:/data
+
+  nsqadmin:
+    image: nsqio/nsq:v1.3.0
+    container_name: asyncnsq-admin
+    depends_on:
+      - nsqlookupd
+    command:
+      - /nsqadmin
+      - --lookupd-http-address=nsqlookupd:4161
+    ports:
+      - "4171:4171"
+
+volumes:
+  nsqd1-data:
+  nsqd2-data:
+  nsqd3-data:

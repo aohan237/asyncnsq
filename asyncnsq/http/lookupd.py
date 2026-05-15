@@ -1,4 +1,3 @@
-import asyncio
 from .base import NsqHTTPConnection
 
 
@@ -61,7 +60,7 @@ class NsqLookupd(NsqHTTPConnection):
         :return:
         """
         resp = await self.perform_request(
-            'POST', '/topic/create', {'topic': topic}, None)
+            'POST', 'topic/create', {'topic': topic}, None)
         return resp
 
     async def delete_topic(self, topic):
@@ -71,7 +70,7 @@ class NsqLookupd(NsqHTTPConnection):
         :return:
         """
         resp = await self.perform_request(
-            'POST', '/topic/delete', {'topic': topic}, None)
+            'POST', 'topic/delete', {'topic': topic}, None)
         return resp
 
     async def create_channel(self, topic, channel):
@@ -82,7 +81,7 @@ class NsqLookupd(NsqHTTPConnection):
         :return:
         """
         resp = await self.perform_request(
-            'POST', '/channel/create', {'topic': topic, 'channel': channel},
+            'POST', 'channel/create', {'topic': topic, 'channel': channel},
             None)
         return resp
 
@@ -94,7 +93,7 @@ class NsqLookupd(NsqHTTPConnection):
         :return:
         """
         resp = await self.perform_request(
-            'POST', '/channel/delete', {'topic': topic, 'channel': channel},
+            'POST', 'channel/delete', {'topic': topic, 'channel': channel},
             None)
         return resp
 
@@ -106,6 +105,6 @@ class NsqLookupd(NsqHTTPConnection):
         :return:
         """
         resp = await self.perform_request(
-            'POST', 'delete_channel', {'topic': topic, 'node': node},
+            'POST', 'topic/tombstone', {'topic': topic, 'node': node},
             None)
         return resp

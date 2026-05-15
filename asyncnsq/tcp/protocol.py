@@ -7,8 +7,8 @@ import struct
 import zlib
 try:
     import snappy
-except Exception as tmp:
-    print("snappy is not installed, install it if you need snappy compress")
+except ImportError:  # pragma: no cover - depends on optional runtime package
+    snappy = None
 import logging
 
 from . import consts
@@ -19,6 +19,9 @@ logger = logging.getLogger(__package__)
 
 
 __all__ = ['Reader', 'DeflateReader', 'SnappyReader']
+
+_INT32 = struct.Struct('>l')
+_MESSAGE_HEADER = struct.Struct('>qH16s')
 
 
 class BaseReader(metaclass=abc.ABCMeta):
@@ -74,7 +77,10 @@ class BaseCompressReader(BaseReader):
 
     def encode_command(self, cmd, *args, data=None):
         cmd = self._parser.encode_command(cmd, *args, data=data)
-        # print(cmd)
+        return self.compress(cmd)
+
+    def encode_pub(self, topic, data):
+        cmd = self._parser.encode_pub(topic, data)
         return self.compress(cmd)
 
 
@@ -99,6 +105,9 @@ class DeflateReader(BaseCompressReader):
 class SnappyReader(BaseCompressReader):
 
     def __init__(self, buffer=None):
+        if snappy is None:
+            raise RuntimeError(
+                "python-snappy is required when snappy compression is enabled")
         self._parser = Reader()
         self._decompressor = snappy.StreamDecompressor()
         self._compressor = snappy.StreamCompressor()
@@ -114,7 +123,7 @@ class SnappyReader(BaseCompressReader):
 
 def _encode_body(data):
     _data = _convert_to_bytes(data)
-    result = struct.pack('>l', len(_data)) + _data
+    result = _INT32.pack(len(_data)) + _data
     return result
 
 
@@ -123,6 +132,7 @@ class Reader(BaseReader):
     def __init__(self, buffer=None):
 
         self._buffer = bytearray()
+        self._offset = 0
         self._payload_size = None
         self._is_header = False
         self._frame_type = None
@@ -130,7 +140,9 @@ class Reader(BaseReader):
 
     @property
     def buffer(self):
-        return self._buffer
+        if self._offset == 0:
+            return self._buffer
+        return self._buffer[self._offset:]
 
     def feed(self, chunk):
         """Put raw chunk of data obtained from connection to buffer.
@@ -141,34 +153,39 @@ class Reader(BaseReader):
         self._buffer.extend(chunk)
 
     def gets(self):
-        buffer_size = len(self._buffer)
+        buffer_size = len(self._buffer) - self._offset
         if not self._is_header and buffer_size >= consts.DATA_SIZE:
-            size = struct.unpack('>l', self._buffer[:consts.DATA_SIZE])[0]
+            size = _INT32.unpack_from(self._buffer, self._offset)[0]
             self._payload_size = size
             self._is_header = True
 
         if (self._is_header and buffer_size >=
                 consts.DATA_SIZE + self._payload_size):
+            if self._payload_size < consts.FRAME_SIZE:
+                raise ProtocolError("invalid frame size")
 
-            start, end = consts.DATA_SIZE, consts.DATA_SIZE + consts.FRAME_SIZE
+            start = self._offset + consts.DATA_SIZE
 
-            self._frame_type = struct.unpack('>l', self._buffer[start:end])[0]
-            # temp neglect for frame error.
-            # todo
+            self._frame_type = _INT32.unpack_from(self._buffer, start)[0]
             if self._frame_type not in (consts.FRAME_TYPE_RESPONSE,
                                         consts.FRAME_TYPE_ERROR,
                                         consts.FRAME_TYPE_MESSAGE):
-                logger.debug(f"_frame_type error-> {self._frame_type}")
-                self._reset()
-                return False
+                raise ProtocolError(
+                    "invalid frame type: {}".format(self._frame_type))
             resp = self._parse_payload()
             self._reset()
             return resp
         return False
 
     def _reset(self):
-        start = consts.DATA_SIZE + self._payload_size
-        self._buffer = self._buffer[start:]
+        start = self._offset + consts.DATA_SIZE + self._payload_size
+        self._offset = start
+        if self._offset == len(self._buffer):
+            self._buffer.clear()
+            self._offset = 0
+        elif self._offset > consts.MAX_CHUNK_SIZE:
+            del self._buffer[:self._offset]
+            self._offset = 0
         self._is_header = False
         self._payload_size = None
         self._frame_type = None
@@ -187,26 +204,32 @@ class Reader(BaseReader):
         return response_type, response
 
     def _unpack_error(self):
-        start = consts.DATA_SIZE + consts.FRAME_SIZE
-        end = consts.DATA_SIZE + self._payload_size
+        start = self._offset + consts.DATA_SIZE + consts.FRAME_SIZE
+        end = self._offset + consts.DATA_SIZE + self._payload_size
         error = bytes(self._buffer[start:end])
-        code, msg = error.split(None, 1)
+        code, _, msg = error.partition(b' ')
         return code, msg
 
     def _unpack_response(self):
-        start = consts.DATA_SIZE + consts.FRAME_SIZE
-        end = consts.DATA_SIZE + self._payload_size
+        start = self._offset + consts.DATA_SIZE + consts.FRAME_SIZE
+        end = self._offset + consts.DATA_SIZE + self._payload_size
         body = bytes(self._buffer[start:end])
         return body
 
     def _unpack_message(self):
-        start = consts.DATA_SIZE + consts.FRAME_SIZE
-        end = consts.DATA_SIZE + self._payload_size
-        msg_len = end - start - consts.MSG_HEADER
-        fmt = '>qh16s{}s'.format(msg_len)
-        payload = struct.unpack(fmt, self._buffer[start:end])
-        timestamp, attempts, msg_id, body = payload
+        start = self._offset + consts.DATA_SIZE + consts.FRAME_SIZE
+        end = self._offset + consts.DATA_SIZE + self._payload_size
+        if end - start < consts.MSG_HEADER:
+            raise ProtocolError("invalid message frame size")
+        timestamp, attempts, msg_id = _MESSAGE_HEADER.unpack_from(
+            self._buffer, start)
+        body = bytes(self._buffer[start + consts.MSG_HEADER:end])
         return timestamp, attempts, msg_id, body
+
+    def encode_pub(self, topic, data):
+        topic_data = _convert_to_bytes(topic)
+        body_data = _encode_body(data)
+        return b''.join((consts.PUB, b' ', topic_data, consts.NL, body_data))
 
     def encode_command(self, cmd, *args, data=None):
         """XXX"""
@@ -217,12 +240,12 @@ class Reader(BaseReader):
         if len(_args):
             params_data = b' ' + b' '.join(_args)
 
-        if data and isinstance(data, (list, tuple)):
+        if isinstance(data, (list, tuple)):
             data_encoded = [_encode_body(part) for part in data]
             num_parts = len(data_encoded)
-            payload = struct.pack('>l', num_parts) + b''.join(data_encoded)
-            body_data = struct.pack('>l', len(payload)) + payload
-        elif data:
+            payload = _INT32.pack(num_parts) + b''.join(data_encoded)
+            body_data = _INT32.pack(len(payload)) + payload
+        elif data is not None:
             body_data = _encode_body(data)
 
         return b''.join((_cmd, params_data, consts.NL, body_data))

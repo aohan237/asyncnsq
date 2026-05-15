@@ -9,30 +9,28 @@ from asyncnsq.utils import _convert_to_str
 
 
 class NsqConnectionTest(BaseTest):
+    required_ports = (('127.0.0.1', 4150), ('127.0.0.1', 4151))
 
     def setUp(self):
         self.topic = 'foo'
         self.host = '127.0.0.1'
         self.port = 4150
         super().setUp()
-        self.http_writer = NsqdHttpWriter(
-            self.host, self.port+1, loop=self.loop)
-        create_topic_res = self.loop.run_until_complete(
-            self.http_writer.create_topic(self.topic))
-        print("create_topic_res", create_topic_res)
+        create_topic_res = asyncio.run(self._create_topic())
         self.assertEqual(create_topic_res, "")
         self.auth_secret = 'test_secret'
 
-    def tearDown(self):
-        super().tearDown()
-        self.loop.run_until_complete(
-            self.http_writer.close())
+    async def _create_topic(self):
+        writer = NsqdHttpWriter(self.host, self.port + 1)
+        try:
+            return await writer.create_topic(self.topic)
+        finally:
+            await writer.close()
 
     @run_until_complete
     async def test_basic_instance(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         self.assertIsInstance(conn, TcpConnection)
         self.assertTrue('TcpConnection' in conn.__repr__())
         self.assertTrue(host in conn.endpoint)
@@ -43,8 +41,7 @@ class NsqConnectionTest(BaseTest):
     @run_until_complete
     async def test_auth_fail_bad_secret(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
         if res.get('auth_required') is True:
@@ -58,8 +55,7 @@ class NsqConnectionTest(BaseTest):
     @run_until_complete
     async def test_auth_fail_wrong_ip(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
         if res.get('auth_required') is True:
@@ -73,8 +69,7 @@ class NsqConnectionTest(BaseTest):
     @run_until_complete
     async def test_auth_fail_needs_tls(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
         if res.get('auth_required') is True:
@@ -88,8 +83,7 @@ class NsqConnectionTest(BaseTest):
     @run_until_complete
     async def test_auth_fail_no_pub(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
         if res.get('auth_required') is True:
@@ -105,8 +99,7 @@ class NsqConnectionTest(BaseTest):
     @run_until_complete
     async def test_auth_fail_no_sub(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
         if res.get('auth_required') is True:
@@ -122,8 +115,7 @@ class NsqConnectionTest(BaseTest):
     @run_until_complete
     async def test_auth_fail_wrong_topic(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
         if res.get('auth_required') is True:
@@ -139,8 +131,7 @@ class NsqConnectionTest(BaseTest):
     @run_until_complete
     async def test_auth_fail_wrong_channel(self):
         host, port = '127.0.0.1', 4150
-        conn = await create_connection(host=host, port=port,
-                                       loop=self.loop)
+        conn = await create_connection(host=host, port=port)
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
         if res.get('auth_required') is True:
@@ -155,8 +146,7 @@ class NsqConnectionTest(BaseTest):
 
     @run_until_complete
     async def test_tls(self):
-        conn = await create_connection(host=self.host, port=self.port,
-                                       loop=self.loop)
+        conn = await create_connection(host=self.host, port=self.port)
 
         config = {'feature_negotiation': True, 'tls_v1': True,
                   'snappy': False, 'deflate': False
@@ -168,30 +158,24 @@ class NsqConnectionTest(BaseTest):
 
     @run_until_complete
     async def test_snappy(self):
-        print("test_snappy 1")
-        conn = await create_connection(host=self.host, port=self.port,
-                                       loop=self.loop)
-        print("test_snappy conn")
+        conn = await create_connection(host=self.host, port=self.port)
         config = {'feature_negotiation': True, 'tls_v1': False,
                   'snappy': True, 'deflate': False
                   }
         self.assertIsInstance(conn._parser, Reader)
         config_res = await conn.identify(**config)
-        print("test_snappy config", config_res)
         self.assertIsInstance(conn._parser, SnappyReader)
 
         config_res = json.loads(_convert_to_str(config_res))
         if config_res.get('auth_required') is True:
             await conn.auth(self.auth_secret)
 
-        print("test_snappy")
         await self._pub_sub_rdy_fin(conn)
         conn.close()
 
     @run_until_complete
     async def test_deflate(self):
-        conn = await create_connection(host=self.host, port=self.port,
-                                       loop=self.loop)
+        conn = await create_connection(host=self.host, port=self.port)
 
         config = {'feature_negotiation': True, 'tls_v1': False,
                   'snappy': False, 'deflate': True
@@ -199,7 +183,6 @@ class NsqConnectionTest(BaseTest):
         self.assertIsInstance(conn._parser, Reader)
 
         nego_res = await conn.identify(**config)
-        print(nego_res)
         self.assertIsInstance(conn._parser, DeflateReader)
 
         nego_res = json.loads(_convert_to_str(nego_res))
@@ -210,16 +193,11 @@ class NsqConnectionTest(BaseTest):
         conn.close()
 
     async def _pub_sub_rdy_fin(self, conn):
-        print("start _pub_sub_rdy_fin")
-        print(conn.closed)
-        ok = await conn.execute('PUB', 'foo', data=b'msg foo')
-        print("_pub_sub_rdy_fin pub data", ok)
-        self.assertEqual(ok, b'OK')
         await conn.execute(b'SUB', 'foo', 'bar')
+        ok = await conn.execute('PUB', 'foo', data=b'msg foo')
+        self.assertEqual(ok, b'OK')
         await conn.execute(b'RDY', 1)
-        print("starting to get msg")
-        msg = await conn._queue.get()
-        print("get message", msg)
+        msg = await asyncio.wait_for(conn._queue.get(), timeout=5)
         self.assertEqual(msg.processed, False)
         await msg.fin()
         self.assertEqual(msg.processed, True)
@@ -227,29 +205,28 @@ class NsqConnectionTest(BaseTest):
 
     @run_until_complete
     async def test_message(self):
-        conn = await create_connection(host=self.host, port=self.port,
-                                       loop=self.loop)
+        conn = await create_connection(host=self.host, port=self.port)
 
         resp = await conn.identify(feature_negotiation=True)
         resp = json.loads(_convert_to_str(resp))
         if resp.get('auth_required') is True:
             await conn.auth(self.auth_secret)
 
-        ok = await conn.execute(b'PUB', self.topic, data=b'boom')
-        self.assertEqual(ok, b'OK')
         res = await conn.execute(b'SUB', self.topic,  'boom')
         self.assertEqual(res, b"OK")
+        ok = await conn.execute(b'PUB', self.topic, data=b'boom')
+        self.assertEqual(ok, b'OK')
         await conn.execute(b'RDY', 1)
 
-        msg = await conn._queue.get()
+        msg = await asyncio.wait_for(conn._queue.get(), timeout=5)
         self.assertEqual(msg.processed, False)
 
         await msg.touch()
         self.assertEqual(msg.processed, False)
-        await msg.req(1)
+        await msg.req(0)
         self.assertEqual(msg.processed, True)
         await conn.execute(b'RDY', 1)
-        new_msg = await conn._queue.get()
+        new_msg = await asyncio.wait_for(conn._queue.get(), timeout=5)
         res = await new_msg.fin()
         self.assertEqual(res, b"OK")
         self.assertEqual(msg.processed, True)

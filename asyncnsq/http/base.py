@@ -1,7 +1,8 @@
 import json
 import logging
-import aiohttp
-from ..utils import _convert_to_str
+import httpx
+from asyncnsq.tcp.exceptions import NSQHttpError
+from ..utils import _convert_to_bytes
 
 
 logger = logging.getLogger(__package__)
@@ -10,35 +11,54 @@ logger = logging.getLogger(__package__)
 class NsqHTTPConnection:
     """XXX"""
 
-    def __init__(self, host='127.0.0.1', port=4150, *, loop):
-        self._loop = loop
+    def __init__(self, host='127.0.0.1', port=4150):
         self._endpoint = (host, port)
-        self._base_url = 'http://{0}:{1}/'.format(*self._endpoint)
-
-        self._session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(),
-                                              loop=self._loop)
+        self._base_url = 'http://{0}:{1}'.format(*self._endpoint)
+        self._session = None
 
     @property
     def endpoint(self):
         return 'http://{0}:{1}'.format(*self._endpoint)
 
+    async def __aenter__(self):
+        self._ensure_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
+
+    def _ensure_session(self):
+        if self._session is None or self._session.is_closed:
+            self._session = httpx.AsyncClient(base_url=self._base_url)
+        return self._session
+
     async def close(self):
-        return await self._session.close()
+        if self._session is not None:
+            return await self._session.aclose()
 
-    async def perform_request(self, method, url, params, body):
-        _body = _convert_to_str(body) if body else body
-        url = self._base_url + url
+    async def perform_request(self, method, url, params=None, body=None,
+                              headers=None):
+        if body is None:
+            request_body = None
+        elif isinstance(body, (dict, list, tuple)):
+            request_body = json.dumps(body).encode('utf-8')
+        else:
+            request_body = _convert_to_bytes(body)
 
-        # debug info for user to check if exception happens
+        url = '/' + url.lstrip('/')
+        session = self._ensure_session()
 
-        # let user decide if what to do with the aiohttp exceptions
-        resp = await self._session.request(method, url,
-                                           params=params,
-                                           data=_body)
+        resp = await session.request(method, url, params=params,
+                                     content=request_body, headers=headers)
 
-        resp_body = await resp.text()
-        logger.debug(f"resp= > {resp_body}, \
-                     {method}, {url}, {params}, {_body}, {type(_body)}")
+        resp_body = resp.text
+        logger.debug(
+            "resp= > %s, %s, %s, %s, %s, %s",
+            resp_body, method, url, params, request_body, type(request_body))
+        if resp.status_code >= 400:
+            raise NSQHttpError(
+                "HTTP {} for {} {}: {}".format(
+                    resp.status_code, method, url, resp_body))
         try:
             response = json.loads(resp_body)
         except ValueError:

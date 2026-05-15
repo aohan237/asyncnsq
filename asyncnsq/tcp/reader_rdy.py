@@ -1,27 +1,25 @@
 import asyncio
-import time
-import random
+
 from .consts import RDY
+
 REDISTRIBUTE = 0
 CHANGE_CONN_RDY = 1
+DEFAULT_MAX_RDY_COUNT = 2500
 
 
 class RdyControl:
 
-    def __init__(self, idle_timeout, max_in_flight, loop=None):
+    def __init__(self, idle_timeout, max_in_flight):
         self._connections = {}
         self._idle_timeout = idle_timeout
-        self._total_ready_count = 0
         self._max_in_flight = max_in_flight
-        self._loop = loop or asyncio.get_event_loop()
 
         self._cmd_queue = asyncio.Queue()
-
-        self._expected_rdy_state = {}
-
         self._is_working = True
+        self._pending_conn_ids = set()
+        self._redistribute_pending = False
 
-        self._distributor_task = self._loop.create_task(self._distributor())
+        self._distributor_task = asyncio.create_task(self._distributor())
 
     def add_connections(self, connections):
         self._connections = connections
@@ -33,74 +31,96 @@ class RdyControl:
         self._connections[connection.id] = connection
 
     def rdy_changed(self, conn_id):
+        if not self._is_working or conn_id in self._pending_conn_ids:
+            return
+        self._pending_conn_ids.add(conn_id)
         self._cmd_queue.put_nowait((CHANGE_CONN_RDY, (conn_id,)))
 
     def redistribute(self):
+        if not self._is_working or self._redistribute_pending:
+            return
+        self._redistribute_pending = True
         self._cmd_queue.put_nowait((REDISTRIBUTE, ()))
 
     async def _distributor(self):
         while self._is_working:
             cmd, args = await self._cmd_queue.get()
             if cmd == REDISTRIBUTE:
+                self._redistribute_pending = False
                 await self._redistribute_rdy_state()
             elif cmd == CHANGE_CONN_RDY:
-                await self._update_rdy(*args)
+                conn_id = args[0]
+                self._pending_conn_ids.discard(conn_id)
+                await self._update_rdy(conn_id)
             else:
-                RuntimeError("Should never be here")
+                raise RuntimeError("Should never be here")
 
     def remove_connection(self, conn):
-        self._connections.pop(conn.id)
+        self._connections.pop(conn.id, None)
+        self._pending_conn_ids.discard(conn.id)
 
     def remove_all(self):
         self._connections = {}
+        self._pending_conn_ids.clear()
+
+    def _active_connections(self):
+        return [
+            conn for conn in self._connections.values()
+            if not getattr(conn, 'closed', False)
+        ]
+
+    def _target_rdy_by_id(self):
+        connections = sorted(self._active_connections(), key=lambda conn: conn.id)
+        if not connections or self._max_in_flight <= 0:
+            return {}
+
+        base, remainder = divmod(self._max_in_flight, len(connections))
+        targets = {}
+        for index, conn in enumerate(connections):
+            target = base + (1 if index < remainder else 0)
+            max_rdy_count = getattr(
+                conn, '_max_rdy_count', DEFAULT_MAX_RDY_COUNT)
+            targets[conn.id] = min(target, max_rdy_count)
+        return targets
 
     async def _redistribute_rdy_state(self):
-        # We redistribute RDY counts in a few cases:
-        #
-        # 1. our # of connections exceeds our configured max_in_flight
-        # 2. we're in backoff mode (but not in a current backoff block)
-        # 3. something out-of-band has set the need_rdy_redistributed flag
-        # (connection closed
-        # that was about to get RDY during backoff)
-        #
-        # At a high level, we're trying to mitigate stalls related to
-        # -volume
-        # producers when we're unable (by configuration or backoff) to provide
-        # a RDY count
-        # of (at least) 1 to all of our connections.
-
-        connections = self._connections.values()
-        # disable for further deprecate
-
-        # rdy_coros = [
-        #     conn.execute(RDY, 0) for conn in connections
-        #     if not (conn.rdy_state == 0 or
-        #             (time.time() - conn.last_message) < self._idle_timeout)
-        # ]
-
-        distributed_rdy = sum(c._in_flight for c in connections)
-        not_distributed_rdy = self._max_in_flight - distributed_rdy
-
-        random_connections = random.sample(list(connections),
-                                           min(not_distributed_rdy,
-                                               len(connections)))
-
-        rdy_coros = [conn.execute(RDY, 1) for conn in random_connections]
-
-        await asyncio.gather(*rdy_coros)
+        targets = self._target_rdy_by_id()
+        coros = [
+            self._set_conn_rdy(conn, targets.get(conn.id, 0))
+            for conn in self._active_connections()
+        ]
+        if coros:
+            await asyncio.gather(*coros)
 
     async def _update_rdy(self, conn_id):
-        conn = self._connections[conn_id]
-        # this is the configuration max_in_flight split even on conn
-        base_conn_max_in_flight = self._max_in_flight / \
-            max(1, len(self._connections))
+        conn = self._connections.get(conn_id)
+        if conn is None or conn.closed:
+            return
+        target = self._target_rdy_by_id().get(conn_id, 0)
+        if target <= 0:
+            await self._set_conn_rdy(conn, 0)
+            return
 
-        # this is the in_flight number of the conn_id's conn
-        conn_in_flight = conn._in_flight
+        allocated = getattr(conn, '_rdy_count', 0) + conn._in_flight
+        low_water = max(1, target // 4)
+        if allocated <= low_water:
+            await self._set_conn_rdy(conn, target)
 
-        # get the max rdy state for conn
-        rdy_state = int(max(1, base_conn_max_in_flight - conn_in_flight))
-        await conn.execute(RDY, rdy_state)
+    async def _set_conn_rdy(self, conn, target):
+        if conn.closed:
+            return
+        conn._rdy_target = target
+        conn._rdy_low_water = max(1, target // 4) if target > 0 else 0
+        rdy_count = max(0, target - conn._in_flight)
+        max_rdy_count = getattr(conn, '_max_rdy_count', DEFAULT_MAX_RDY_COUNT)
+        rdy_count = min(rdy_count, max_rdy_count)
+        if getattr(conn, '_rdy_count', 0) == rdy_count:
+            return
+        await conn.execute(RDY, rdy_count)
 
     def close(self):
-        self._distributor_task.cancel()
+        self._is_working = False
+        self._pending_conn_ids.clear()
+        self._redistribute_pending = False
+        if not self._distributor_task.done():
+            self._distributor_task.cancel()

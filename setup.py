@@ -4,15 +4,14 @@ import sys
 from setuptools import setup, find_packages
 
 
-install_requires = ['python-snappy', 'aiohttp']
 NAME = 'asyncnsq'
 PACKAGE = 'asyncnsq'
 PY_VER = sys.version_info
 
-if PY_VER >= (3, 6):
+if PY_VER >= (3, 12):
     pass
 else:
-    raise RuntimeError("asyncnsq doesn't support Python version prior 3.6")
+    raise RuntimeError("asyncnsq doesn't support Python version prior 3.12")
 
 
 def read(*parts):
@@ -34,14 +33,10 @@ def read_version():
 
 
 classifiers = [
-    'License :: OSI Approved :: MIT License',
     'Development Status :: 4 - Beta',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.7',
-    'Programming Language :: Python :: 3.8',
-    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.12',
     'Operating System :: POSIX',
     'Environment :: Web Environment',
     'Intended Audience :: Developers',
@@ -66,8 +61,11 @@ setup(name='asyncnsq',
       author="aohan237",
       author_email="aohan237@gmail.com",
       url="https://github.com/aohan237/asyncnsq",
-      license="MIT",
       packages=find_packages(exclude=["tests"]),
-      install_requires=install_requires,
+      entry_points={
+          "console_scripts": [
+              "asyncnsq-benchmark=benchmarks.nsq_benchmark:main",
+          ],
+      },
       include_package_data=True,
       )

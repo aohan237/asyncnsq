@@ -73,6 +73,10 @@ class NSQMPubFailed(NSQErrorCode):
     """E_MPUB_FAILED"""
 
 
+class NSQDPubFailed(NSQErrorCode):
+    """E_DPUB_FAILED"""
+
+
 class NSQAuthDisabled(NSQErrorCode):
     """E_AUTH_DISABLED"""
 
@@ -109,6 +113,7 @@ ERROR_CODES = {
     b'E_PUT_FAILED': NSQPutFailed,
     b'E_PUB_FAILED': NSQPubFailed,
     b'E_MPUB_FAILED': NSQMPubFailed,
+    b'E_DPUB_FAILED': NSQDPubFailed,
     b'E_FINISH_FAILED': NSQFinishFailed,
     b'E_AUTH_DISABLED': NSQAuthDisabled,
     b'E_AUTH_FAILED': NSQAuthFailed,
@@ -127,6 +132,5 @@ ERROR_CODES = {
 
 def make_error(code, error_message):
     return ERROR_CODES.get(code, NSQErrorCode)(error_message)
-
 
 

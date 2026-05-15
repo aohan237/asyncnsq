@@ -3,7 +3,6 @@ __pycache__/
 *.py[cod]
 .DS_Store
 
-.python-version
 *.vscode/
 # C extensions
 *.so

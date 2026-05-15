@@ -11,6 +11,7 @@ from ._testutils import run_until_complete, BaseTest
 
 
 class NsqTest(BaseTest):
+    required_ports = (('127.0.0.1', 4150),)
 
     def setUp(self):
         self.topic = 'foo'
@@ -28,7 +29,6 @@ class NsqTest(BaseTest):
                                   snappy=False,
                                   deflate=False,
                                   deflate_level=0,
-                                  loop=self.loop,
                                   auth_secret=self.auth_secret)
         for i in range(10):
             pub_res = await nsq.pub('foo', 'bar')
@@ -45,23 +45,34 @@ class NsqTest(BaseTest):
             snappy=False,
             deflate=False,
             deflate_level=0,
-            loop=self.loop,
             auth_secret=self.auth_secret)
         await nsq.subscribe('foo', 'bar')
+        writer = await create_writer(host=self.host, port=self.port,
+                                     heartbeat_interval=30000,
+                                     feature_negotiation=True,
+                                     tls_v1=True,
+                                     snappy=False,
+                                     deflate=False,
+                                     deflate_level=0,
+                                     auth_secret=self.auth_secret)
+        for _ in range(10):
+            pub_res = await writer.pub('foo', 'bar')
+            self.assertEqual(pub_res, b"OK")
         num = 0
-        async for msg in nsq.messages():
-            num += 1
-            fin_res = await msg.fin()
-            self.assertEqual(fin_res, b"OK")
-            if num >= 10:
-                break
+        try:
+            while num < 10:
+                msg = await asyncio.wait_for(nsq._queue.get(), timeout=5)
+                num += 1
+                fin_res = await msg.fin()
+                self.assertEqual(fin_res, b"OK")
+        finally:
+            writer.close()
         nsq.close()
 
     async def _is_auth_required(self):
         conn = await create_connection(
             host=self.host,
-            port=self.port,
-            loop=self.loop
+            port=self.port
         )
         res = await conn.identify(feature_negotiation=True)
         res = json.loads(_convert_to_str(res))
@@ -76,8 +87,7 @@ class NsqTest(BaseTest):
                 _ = await create_writer(
                     host=self.host,
                     port=self.port,
-                    feature_negotiation=True,
-                    loop=self.loop
+                    feature_negotiation=True
                 )
         else:
             self.skipTest("no auth enabled")
@@ -88,8 +98,7 @@ class NsqTest(BaseTest):
             with self.assertRaises(ReaderError):
                 _ = await create_reader(
                     nsqd_tcp_addresses=[f"{self.host}:{self.port}"],
-                    feature_negotiation=True,
-                    loop=self.loop
+                    feature_negotiation=True
                 )
         else:
             self.skipTest("no auth enabled")
