@@ -87,15 +87,6 @@ Requirements
 * NSQ, tested with `nsqio/nsq:v1.3.0`
 * Docker, for the local integration test cluster
 
-Release 2.0.1
--------------
-
-`2.0.1` is a documentation polish release for the 2.0 line. It keeps the
-runtime behavior from `2.0.0` and removes PR-specific wording from the benchmark
-documentation so the README reads as project documentation for users.
-
-Release tag: `2.0.1`
-
 Release 2.0.0
 -------------
 
@@ -331,7 +322,7 @@ Donation
 
 If you like this repo, buy me a coffee.
 
-**ETH wallet** 
+**ETH wallet**
 
 <img src="./opensource_wallet.jpeg" alt="drawing" width="400"/>
 
