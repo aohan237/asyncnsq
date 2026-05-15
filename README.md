@@ -292,7 +292,7 @@ Profiles:
 | Profile | Use case | Messages | Payload | Concurrency | Batch |
 | --- | --- | ---: | ---: | ---: | ---: |
 | `quick` | fast smoke benchmark | 5,000 | 256 B | 64 | 100 |
-| `pr` | recommended PR evidence | 50,000 | 512 B | 256 | 250 |
+| `pr` | balanced local benchmark | 50,000 | 512 B | 256 | 250 |
 | `stress` | local high-throughput soak | 250,000 | 1,024 B | 512 | 500 |
 
 Useful overrides:
@@ -304,25 +304,13 @@ uv run asyncnsq-benchmark \
   --payload-size 1024 \
   --concurrency 512 \
   --batch-size 500 \
-  --markdown benchmark.md \
-  --json benchmark.json
+  --markdown asyncnsq-benchmark.md \
+  --json asyncnsq-benchmark.json
 ```
 
-The generated markdown is PR-ready:
-
-```markdown
-| Scenario | Messages | Payload | Batch | Concurrency | Duration | msg/s | MiB/s | p50 ms | p95 ms | p99 ms | Errors | Notes |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| TCP PUB ack | ... | ... | n/a | ... | ... | ... | ... | ... | ... | ... | 0 | per-message publish ACK latency |
-| TCP MPUB batch ack | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | 0 | ACK latency is measured per MPUB batch |
-| end-to-end pub->fin | ... | ... | n/a | ... | ... | ... | ... | ... | ... | ... | 0 | missing=0, duplicates=0, fin_errors=0 |
-| graceful close requeue | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | 0 | requeued=..., recovered=..., missing=0, unexpected=0 |
-```
-
-For a PR, attach `benchmark.md` and keep every row at `Errors = 0`. Compare
-throughput and latency only between runs on the same machine and Docker setup.
-For Go comparisons, attach both files from `benchmark-results/` and compare
-only the matching `PUB`, `MPUB`, and end-to-end rows.
+Benchmark numbers are most useful when compared on the same machine, Python
+version, NSQ version, Docker setup, and payload size. Every benchmark scenario
+reports an `Errors` column; a healthy run should keep it at zero.
 
 License
 -------
