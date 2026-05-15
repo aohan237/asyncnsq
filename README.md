@@ -87,6 +87,15 @@ Requirements
 * NSQ, tested with `nsqio/nsq:v1.3.0`
 * Docker, for the local integration test cluster
 
+Release 2.0.1
+-------------
+
+`2.0.1` is a documentation polish release for the 2.0 line. It keeps the
+runtime behavior from `2.0.0` and removes PR-specific wording from the benchmark
+documentation so the README reads as project documentation for users.
+
+Release tag: `2.0.1`
+
 Release 2.0.0
 -------------
 
@@ -234,7 +243,7 @@ PROFILE=pr ./test_service/benchmark_compare_go.sh --consumer-processes 4
 Latest local results
 --------------------
 
-These numbers were measured for the `2.0.0` release on 2026-05-15 with Python
+These numbers were measured for the 2.0 release line on 2026-05-15 with Python
 3.12.4, NSQ `nsqio/nsq:v1.3.0`, a local Docker three-node nsqd cluster, 10,000
 messages, 512 B payloads, concurrency 256, `max_in_flight=1024`, and
 `output_buffer_timeout=25ms`. Treat them as a same-machine reference, not a
