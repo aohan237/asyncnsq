@@ -1,52 +1,24 @@
 import asyncio
-import sys
-import os
-import logging
+
 from asyncnsq import create_reader
-from asyncnsq.utils import get_logger
 
-logger = get_logger()
-
-
-def main():
-
-    loop = asyncio.get_event_loop()
-
-    async def go():
-        try:
-            reader = await create_reader(
-                lookupd_http_addresses=[
-                    ('127.0.0.1', 4161)],
-                max_in_flight=200)
-            await reader.subscribe('test_async_nsq', 'nsq')
-            async for message in reader.messages():
-                print(message.body)
-                await message.fin()
-        except Exception as tmp:
-            logger.exception(tmp)
-
-    loop.run_until_complete(go())
+TOPIC = "test_async_nsq"
+CHANNEL = "nsq"
 
 
-def tcp_main():
-
-    loop = asyncio.get_event_loop()
-
-    async def go():
-        try:
-            reader = await create_reader(
-                nsqd_tcp_addresses=['127.0.0.1:4150'],
-                max_in_flight=200)
-            await reader.subscribe('test_async_nsq', 'nsq')
-            async for message in reader.messages():
-                print(message.body)
-                await message.fin()
-        except Exception as tmp:
-            logger.exception(tmp)
-
-    loop.run_until_complete(go())
+async def main():
+    reader = await create_reader(
+        nsqd_tcp_addresses=["127.0.0.1:4150"],
+        max_in_flight=200,
+    )
+    await reader.subscribe(TOPIC, CHANNEL)
+    try:
+        async for message in reader.messages():
+            print(message.body)
+            await message.fin()
+    finally:
+        await reader.graceful_close()
 
 
-if __name__ == '__main__':
-    # main()
-    tcp_main()
+if __name__ == "__main__":
+    asyncio.run(main())

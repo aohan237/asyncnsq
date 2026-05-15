@@ -1,23 +1,17 @@
 import asyncio
-import json
+
 from asyncnsq.tcp.connection import create_connection
 from asyncnsq.tcp.consts import PUB
 
 
-def main():
-
-    loop = asyncio.get_event_loop()
-
-    async def go():
-        conn = await create_connection(host='localhost',
-                                       port=4151,
-                                       queue=None,
-                                       loop=None)
-        data = json.dumps({'name': 'test'})
-        topic = 'test'
-        await conn.execute(PUB, topic, data=data)
-    loop.run_until_complete(go())
+async def main():
+    conn = await create_connection(host="127.0.0.1", port=4150)
+    try:
+        await conn.identify(feature_negotiation=True)
+        await conn.execute(PUB, "test_async_nsq", data=b"low-level message")
+    finally:
+        await conn.graceful_close(requeue=False)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    asyncio.run(main())

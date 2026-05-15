@@ -1,38 +1,46 @@
-from asyncnsq import create_reader
 import asyncio
 import json
-import time
+import signal
+
+from asyncnsq import create_reader
+
+TOPIC = "test_async_nsq"
+CHANNEL = "graceful"
 
 
-loop = asyncio.get_event_loop()
-
-
-async def go():
+async def handle_message(message):
     try:
-        reader = await create_reader(
-            nsqd_tcp_addresses=['127.0.0.1:4150'],
-            max_in_flight=200)
-        await reader.subscribe('ttt', 'nsq')
-        cur_message = None
-        async for message in reader.messages():
-            a = message.body
-            b = json.loads(a)
-            print(type(b), b)
-            await message.fin()
-            cur_message = message
-            time.sleep(0.5)
-    except KeyboardInterrupt as tmp:
-        print("KeyboardInterrupt", tmp)
-        if not cur_message._is_processed:
-            print("cur_message req", cur_message)
-            await cur_message.req()
-        await reader.clean_close()
-    except SystemExit as tmp:
-        print("SystemExit", tmp)
-        if not cur_message._is_processed:
-            print("cur_message req", cur_message)
-            await cur_message.req()
-        await reader.clean_close()
+        body = json.loads(message.body)
+    except json.JSONDecodeError:
+        body = message.body
+    print(body)
+    await asyncio.sleep(0.5)
 
 
-loop.run_until_complete(go())
+async def main():
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop.set)
+
+    reader = await create_reader(
+        nsqd_tcp_addresses=["127.0.0.1:4150"],
+        max_in_flight=200,
+    )
+    reader.set_message_handler(
+        handle_message,
+        auto_fin=True,
+        auto_requeue=True,
+        concurrency=32,
+    )
+    await reader.subscribe(TOPIC, CHANNEL)
+
+    try:
+        await stop.wait()
+    finally:
+        requeued = await reader.graceful_close(timeout=0)
+        print(f"requeued unfinished messages: {requeued}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
